@@ -8,5 +8,5 @@ edition = "2021"
 [dependencies]
 env_logger = "0.11.3"
 log = "0.4.21"
-midir = "0.9.1"
+midly = "0.5.3"
 regex = "1.10.4"

@@ -117,7 +117,6 @@ impl Scale {
     fn get_named_note(&self, position: i8, octave: i8) -> NamedNote {
         let len = i8::try_from(self.offsets.len()).unwrap();
         let (index, additional_octaves) = (position.rem_euclid(len), position.div_euclid(len));
-        println!("{}", index);
         let index_usize = usize::try_from(index).unwrap();
         let note = Note::compose(self.start.to_key(), octave + additional_octaves)
             + &self.offsets[index_usize];

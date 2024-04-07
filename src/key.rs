@@ -93,7 +93,7 @@ impl Debug for Key {
 // A wrapper around a note, with the height being the same as in MIDI
 // (0 is C-1, 60 is C4 etc.)
 #[derive(PartialEq, Eq, Clone, Copy)]
-pub struct Note(u8);
+pub struct Note(pub u8);
 
 impl Note {
     // Decompose a Note into its Key and octave
