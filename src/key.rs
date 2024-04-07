@@ -8,7 +8,8 @@
 // want the ScaleKey and ScaleNote structs in the scale module.
 
 use regex::Regex;
-use std::fmt::{self, Display};
+use std::fmt::{self, Display, Debug};
+use std::str::FromStr;
 use std::ops::Add;
 
 // Represents any of the 12 distinct keys in Western tuning
@@ -17,50 +18,53 @@ pub struct Key(i8);
 
 impl Key {
     pub fn new(key: i8) -> Self {
-        Self(key % 12)
+        Self(key.rem_euclid(12))
     }
 
-    pub fn get_named_keys(&self) -> [Option<NamedKey>; 2] {
+    pub fn get_named_key_starting_with(&self, base_key: &BaseKey) -> Option<NamedKey> {
+        match (self.0, base_key) {
+            (0, BaseKey::B) => Some(NamedKey::new(BaseKey::B, KeyModifier::Sharp)),
+            (0, BaseKey::C) => Some(NamedKey::new(BaseKey::C, KeyModifier::Natural)),
+            (1, BaseKey::C) => Some(NamedKey::new(BaseKey::C, KeyModifier::Sharp)),
+            (1, BaseKey::D) => Some(NamedKey::new(BaseKey::D, KeyModifier::Flat)),
+            (2, BaseKey::C) => Some(NamedKey::new(BaseKey::D, KeyModifier::DoubleSharp)),
+            (2, BaseKey::D) => Some(NamedKey::new(BaseKey::D, KeyModifier::Natural)),
+            (3, BaseKey::D) => Some(NamedKey::new(BaseKey::D, KeyModifier::Sharp)),
+            (3, BaseKey::E) => Some(NamedKey::new(BaseKey::E, KeyModifier::Flat)),
+            (4, BaseKey::E) => Some(NamedKey::new(BaseKey::E, KeyModifier::Natural)),
+            (4, BaseKey::F) => Some(NamedKey::new(BaseKey::F, KeyModifier::Flat)),
+            (5, BaseKey::E) => Some(NamedKey::new(BaseKey::E, KeyModifier::Sharp)),
+            (5, BaseKey::F) => Some(NamedKey::new(BaseKey::F, KeyModifier::Natural)),
+            (6, BaseKey::F) => Some(NamedKey::new(BaseKey::F, KeyModifier::Sharp)),
+            (6, BaseKey::G) => Some(NamedKey::new(BaseKey::G, KeyModifier::Flat)),
+            (7, BaseKey::F) => Some(NamedKey::new(BaseKey::G, KeyModifier::DoubleSharp)),
+            (7, BaseKey::G) => Some(NamedKey::new(BaseKey::G, KeyModifier::Natural)),
+            (8, BaseKey::G) => Some(NamedKey::new(BaseKey::G, KeyModifier::Sharp)),
+            (8, BaseKey::A) => Some(NamedKey::new(BaseKey::A, KeyModifier::Flat)),
+            (9, BaseKey::G) => Some(NamedKey::new(BaseKey::A, KeyModifier::DoubleSharp)),
+            (9, BaseKey::A) => Some(NamedKey::new(BaseKey::A, KeyModifier::Natural)),
+            (10, BaseKey::A) => Some(NamedKey::new(BaseKey::A, KeyModifier::Sharp)),
+            (10, BaseKey::B) => Some(NamedKey::new(BaseKey::B, KeyModifier::Flat)),
+            (11, BaseKey::B) => Some(NamedKey::new(BaseKey::B, KeyModifier::Natural)),
+            (11, BaseKey::C) => Some(NamedKey::new(BaseKey::C, KeyModifier::Flat)),
+            _ => None,
+        }
+    }
+
+    pub fn get_default_named_key(&self) -> NamedKey {
         match self.0 {
-            0 => [
-                Some(NamedKey::new(BaseKey::C, KeyModifier::Natural)),
-                Some(NamedKey::new(BaseKey::B, KeyModifier::Sharp)),
-            ],
-            1 => [
-                Some(NamedKey::new(BaseKey::C, KeyModifier::Sharp)),
-                Some(NamedKey::new(BaseKey::D, KeyModifier::Flat)),
-            ],
-            2 => [Some(NamedKey::new(BaseKey::D, KeyModifier::Natural)), None],
-            3 => [
-                Some(NamedKey::new(BaseKey::D, KeyModifier::Sharp)),
-                Some(NamedKey::new(BaseKey::E, KeyModifier::Flat)),
-            ],
-            4 => [
-                Some(NamedKey::new(BaseKey::E, KeyModifier::Natural)),
-                Some(NamedKey::new(BaseKey::F, KeyModifier::Flat)),
-            ],
-            5 => [
-                Some(NamedKey::new(BaseKey::F, KeyModifier::Natural)),
-                Some(NamedKey::new(BaseKey::E, KeyModifier::Sharp)),
-            ],
-            6 => [
-                Some(NamedKey::new(BaseKey::F, KeyModifier::Sharp)),
-                Some(NamedKey::new(BaseKey::G, KeyModifier::Flat)),
-            ],
-            7 => [Some(NamedKey::new(BaseKey::G, KeyModifier::Natural)), None],
-            8 => [
-                Some(NamedKey::new(BaseKey::G, KeyModifier::Sharp)),
-                Some(NamedKey::new(BaseKey::A, KeyModifier::Flat)),
-            ],
-            9 => [Some(NamedKey::new(BaseKey::A, KeyModifier::Natural)), None],
-            10 => [
-                Some(NamedKey::new(BaseKey::A, KeyModifier::Sharp)),
-                Some(NamedKey::new(BaseKey::B, KeyModifier::Flat)),
-            ],
-            11 => [
-                Some(NamedKey::new(BaseKey::B, KeyModifier::Natural)),
-                Some(NamedKey::new(BaseKey::C, KeyModifier::Flat)),
-            ],
+            0 => NamedKey::new(BaseKey::C, KeyModifier::Natural),
+            1 => NamedKey::new(BaseKey::C, KeyModifier::Sharp),
+            2 => NamedKey::new(BaseKey::D, KeyModifier::Natural),
+            3 => NamedKey::new(BaseKey::D, KeyModifier::Sharp),
+            4 => NamedKey::new(BaseKey::E, KeyModifier::Natural),
+            5 => NamedKey::new(BaseKey::F, KeyModifier::Natural),
+            6 => NamedKey::new(BaseKey::F, KeyModifier::Sharp),
+            7 => NamedKey::new(BaseKey::G, KeyModifier::Natural),
+            8 => NamedKey::new(BaseKey::G, KeyModifier::Sharp),
+            9 => NamedKey::new(BaseKey::A, KeyModifier::Natural),
+            10 => NamedKey::new(BaseKey::A, KeyModifier::Sharp),
+            11 => NamedKey::new(BaseKey::B, KeyModifier::Natural),
             _ => panic!("Normally keys should be between 0 and 11"),
         }
     }
@@ -70,30 +74,22 @@ impl Key {
 impl Add<&i8> for Key {
     type Output = Key;
     fn add(self, rhs: &i8) -> Self::Output {
-        Key::new((self.0 + *rhs) % 12)
+        Key::new(self.0 + *rhs)
     }
 }
 
 impl Display for Key {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let name = match self.0 {
-            0 => "C",
-            1 => "Cs",
-            2 => "D",
-            3 => "Ds",
-            4 => "E",
-            5 => "F",
-            6 => "Fs",
-            7 => "G",
-            8 => "Gs",
-            9 => "A",
-            10 => "As",
-            11 => "B",
-            _ => panic!("Normally keys should be between 0 and 11"),
-        };
-        write!(f, "{}", name)
+        write!(f, "{}", self.get_default_named_key())
     }
 }
+
+impl Debug for Key {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self)
+    }
+}
+
 
 // A wrapper around a note, with the height being the same as in MIDI
 // (0 is C-1, 60 is C4 etc.)
@@ -104,7 +100,7 @@ impl Note {
     // Decompose a Note into its Key and octave
     pub fn decompose(&self) -> (Key, i8) {
         let key = self.0 % 12;
-        let octave = (self.0 - key) / 12 + 1;
+        let octave = (self.0 - key) / 12 - 1;
         (
             Key::new(key.try_into().unwrap()),
             octave.try_into().unwrap(),
@@ -115,6 +111,18 @@ impl Note {
     pub fn compose(key: Key, octave: i8) -> Self {
         // Note: C-1 is 0, C0 is 12.
         Self(key.0.try_into().unwrap()) + &((octave + 1) * 12)
+    }
+
+    pub fn get_named_note_starting_with(&self, base_key: &BaseKey) -> Option<NamedNote> {
+        let (key, octave) = self.decompose();
+        let named_key = key.get_named_key_starting_with(base_key)?;
+
+        // handle the B#, Cb case correctly
+        Some(match (named_key.base_key, named_key.key_modifier) {
+            (BaseKey::B, KeyModifier::Sharp) => NamedNote::new(named_key, octave - 1),
+            (BaseKey::C, KeyModifier::Flat) => NamedNote::new(named_key, octave + 1),
+            _ => NamedNote::new(named_key, octave),
+        })
     }
 }
 
@@ -134,27 +142,50 @@ impl Display for Note {
     }
 }
 
-// Key Modifiers, for named keys/notes.
-// I think we don't need double-flats, or double-sharps, since this code will be used
-// for the harmony, so we don't need to express accidentations in the melody.
-// And harmonic changes can be expressed by a change of scale.
+impl Debug for Note {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self)
+    }
+}
+
+
 #[derive(PartialEq, Eq, Clone, Copy)]
 pub enum KeyModifier {
     Natural,
     Flat,
     Sharp,
+    DoubleSharp,
+}
+
+impl KeyModifier {
+    pub fn get_value(&self) -> i8 {
+        match self {
+            KeyModifier::Flat => -1,
+            KeyModifier::Natural => 0,
+            KeyModifier::Sharp => 1,
+            KeyModifier::DoubleSharp => 2,
+        }
+    }
 }
 
 impl Display for KeyModifier {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let key_modifier_str = match self {
             KeyModifier::Natural => "",
-            KeyModifier::Flat => "b",
-            KeyModifier::Sharp => "#",
+            KeyModifier::Flat => "♭",
+            KeyModifier::Sharp => "♯",
+            KeyModifier::DoubleSharp => "𝄪"
         };
         write!(f, "{}", key_modifier_str)
     }
 }
+
+impl Debug for KeyModifier {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self)
+    }
+}
+
 
 #[derive(PartialEq, Eq, Clone, Copy)]
 pub enum BaseKey {
@@ -200,18 +231,6 @@ impl BaseKey {
     }
 }
 
-impl Add<&KeyModifier> for BaseKey {
-    type Output = Key;
-    fn add(self, rhs: &KeyModifier) -> Self::Output {
-        self.to_key()
-            + match rhs {
-                KeyModifier::Natural => &0,
-                KeyModifier::Flat => &-1,
-                KeyModifier::Sharp => &1,
-            }
-    }
-}
-
 impl Display for BaseKey {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let base_key_str = match self {
@@ -227,7 +246,13 @@ impl Display for BaseKey {
     }
 }
 
-#[derive(Clone, Copy)]
+impl Debug for BaseKey {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self)
+    }
+}
+
+#[derive(Clone, Copy, PartialEq, Eq)]
 pub struct NamedKey {
     pub base_key: BaseKey,
     pub key_modifier: KeyModifier,
@@ -243,37 +268,40 @@ impl NamedKey {
     pub fn get_components(&self) -> (BaseKey, KeyModifier) {
         (self.base_key, self.key_modifier)
     }
-    pub fn from_str(name: &str) -> Self {
-        let re = Regex::new("^([A-G])([b#])?$").unwrap();
-        let captures = re.captures(name).expect("Invalid key name!");
+    pub fn to_key(&self) -> Key {
+        self.base_key.to_key() + &self.key_modifier.get_value()
+    }
+}
+
+impl FromStr for NamedKey {
+    type Err = String;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let re = Regex::new("^([A-G])([b♭#♯x𝄪])?$").unwrap();
+        let captures = re.captures(s).ok_or_else(|| format!("Invalid key: {}", s))?;
 
         let base_key = match &captures[1] {
-            "C" => BaseKey::C,
-            "D" => BaseKey::D,
-            "E" => BaseKey::E,
-            "F" => BaseKey::F,
-            "G" => BaseKey::G,
-            "A" => BaseKey::A,
-            "B" => BaseKey::B,
-            _ => panic!("Normally the regex should only allow letters between A and G"),
-        };
+            "C" => Ok(BaseKey::C),
+            "D" => Ok(BaseKey::D),
+            "E" => Ok(BaseKey::E),
+            "F" => Ok(BaseKey::F),
+            "G" => Ok(BaseKey::G),
+            "A" => Ok(BaseKey::A),
+            "B" => Ok(BaseKey::B),
+            _ => Err(format!("Invalid key: {} ", s)),
+        }?;
 
         let key_modifier = match captures.get(2) {
-            None => KeyModifier::Natural,
+            None => Ok(KeyModifier::Natural),
             Some(modifier_match) => match modifier_match.as_str() {
-                "b" => KeyModifier::Flat,
-                "#" => KeyModifier::Sharp,
-                _ => panic!("Normally the regex should only allow # and b"),
+                "b" | "♭" => Ok(KeyModifier::Flat),
+                "#" | "♯" => Ok(KeyModifier::Sharp),
+                "x" | "𝄪" => Ok(KeyModifier::DoubleSharp),
+                _ => Err(format!("Invalid key: {}", s)),
             },
-        };
+        }?;
 
-        Self {
-            base_key,
-            key_modifier,
-        }
-    }
-    pub fn to_key(&self) -> Key {
-        self.base_key + &self.key_modifier
+        Ok(Self::new(base_key, key_modifier))
     }
 }
 
@@ -283,7 +311,14 @@ impl Display for NamedKey {
     }
 }
 
-#[derive(Clone, Copy)]
+impl Debug for NamedKey {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self)
+    }
+}
+
+
+#[derive(Clone, Copy, PartialEq, Eq)]
 pub struct NamedNote {
     key: NamedKey,
     octave: i8,
@@ -294,12 +329,33 @@ impl NamedNote {
         NamedNote { key, octave }
     }
     pub fn to_note(&self) -> Note {
-        Note::compose(self.key.to_key(), self.octave)
+        // Do it this way to handle Cb5 is B4, B#4 is C5
+        Note::compose(self.key.base_key.to_key(), self.octave) + &self.key.key_modifier.get_value()
+    }
+}
+
+impl FromStr for NamedNote {
+    type Err = String;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let re = Regex::new("^([A-G][b♭#♯x𝄪]?)(-1|[0-9])$").unwrap();
+        let captures = re.captures(s).ok_or_else(|| format!("Invalid note:{}", s))?;
+
+        let key = NamedKey::from_str(&captures[1])?;
+        let octave: i8 = str::parse(&captures[2]).map_err(|err| format!("Invalid note: {}", s))?;
+
+        Ok(Self::new(key, octave))
     }
 }
 
 impl Display for NamedNote {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}{}", self.key, self.octave)
+    }
+}
+
+impl Debug for NamedNote {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self)
     }
 }
