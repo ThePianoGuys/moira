@@ -8,9 +8,9 @@
 // want the ScaleKey and ScaleNote structs in the scale module.
 
 use regex::Regex;
-use std::fmt::{self, Display, Debug};
-use std::str::FromStr;
+use std::fmt::{self, Debug, Display};
 use std::ops::Add;
+use std::str::FromStr;
 
 // Represents any of the 12 distinct keys in Western tuning
 #[derive(PartialEq, Eq, Clone, Copy)]
@@ -90,7 +90,6 @@ impl Debug for Key {
     }
 }
 
-
 // A wrapper around a note, with the height being the same as in MIDI
 // (0 is C-1, 60 is C4 etc.)
 #[derive(PartialEq, Eq, Clone, Copy)]
@@ -148,7 +147,6 @@ impl Debug for Note {
     }
 }
 
-
 #[derive(PartialEq, Eq, Clone, Copy)]
 pub enum KeyModifier {
     Natural,
@@ -174,7 +172,7 @@ impl Display for KeyModifier {
             KeyModifier::Natural => "",
             KeyModifier::Flat => "♭",
             KeyModifier::Sharp => "♯",
-            KeyModifier::DoubleSharp => "𝄪"
+            KeyModifier::DoubleSharp => "𝄪",
         };
         write!(f, "{}", key_modifier_str)
     }
@@ -185,7 +183,6 @@ impl Debug for KeyModifier {
         write!(f, "{}", self)
     }
 }
-
 
 #[derive(PartialEq, Eq, Clone, Copy)]
 pub enum BaseKey {
@@ -211,7 +208,7 @@ impl BaseKey {
         };
         Key::new(key)
     }
-    pub fn get_keys_in_order(&self) -> Vec<BaseKey> {
+    pub fn get_keys_in_order(&self) -> impl Iterator<Item = BaseKey> {
         let keys_in_order = [
             Self::C,
             Self::D,
@@ -222,12 +219,7 @@ impl BaseKey {
             Self::B,
         ];
         let start_idx = keys_in_order.iter().position(|x| *x == *self).unwrap();
-        keys_in_order
-            .into_iter()
-            .cycle()
-            .skip(start_idx)
-            .take(7)
-            .collect()
+        keys_in_order.into_iter().cycle().skip(start_idx).take(7)
     }
 }
 
@@ -278,7 +270,9 @@ impl FromStr for NamedKey {
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         let re = Regex::new("^([A-G])([b♭#♯x𝄪])?$").unwrap();
-        let captures = re.captures(s).ok_or_else(|| format!("Invalid key: {}", s))?;
+        let captures = re
+            .captures(s)
+            .ok_or_else(|| format!("Invalid key: {}", s))?;
 
         let base_key = match &captures[1] {
             "C" => Ok(BaseKey::C),
@@ -317,7 +311,6 @@ impl Debug for NamedKey {
     }
 }
 
-
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub struct NamedNote {
     key: NamedKey,
@@ -339,7 +332,9 @@ impl FromStr for NamedNote {
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         let re = Regex::new("^([A-G][b♭#♯x𝄪]?)(-1|[0-9])$").unwrap();
-        let captures = re.captures(s).ok_or_else(|| format!("Invalid note:{}", s))?;
+        let captures = re
+            .captures(s)
+            .ok_or_else(|| format!("Invalid note:{}", s))?;
 
         let key = NamedKey::from_str(&captures[1])?;
         let octave: i8 = str::parse(&captures[2]).map_err(|err| format!("Invalid note: {}", s))?;

@@ -1,24 +1,28 @@
-use std::rc::Rc;
 use log::warn;
+use std::rc::Rc;
 
 mod chord;
 mod key;
 mod scale;
 
-use key::{NamedNote, NamedKey};
+use key::{NamedKey, NamedNote};
 use scale::{Scale, ScaleNote};
 
 fn main() {
     env_logger::init();
     warn!("This is a warning!");
 
-    let major_scales = ["C", "Db", "D", "Eb", "E", "F", "F#", "G", "Ab", "A", "Bb", "B"];
+    let major_scales = [
+        "C", "Db", "D", "Eb", "E", "F", "F#", "G", "Ab", "A", "Bb", "B",
+    ];
     for key_name in major_scales {
         let key = str::parse::<NamedKey>(key_name).unwrap();
         let _scale = Scale::new(key, vec![0, 2, 4, 5, 7, 9, 11]).unwrap();
     }
 
-    let minor_scales = ["C", "C#", "D", "Eb", "E", "F", "F#", "G", "G#", "A", "A#", "B"];
+    let minor_scales = [
+        "C", "C#", "D", "Eb", "E", "F", "F#", "G", "G#", "A", "A#", "B",
+    ];
     for key_name in minor_scales {
         let key = str::parse::<NamedKey>(key_name).unwrap();
         let _scale = Scale::new(key, vec![0, 2, 3, 5, 7, 8, 11]).unwrap();
