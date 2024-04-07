@@ -1,18 +1,16 @@
-use std::rc::Rc;
-
 use log::warn;
 
 use super::key::{BaseKey, Key, NamedKey, NamedNote, Note};
 
 // A key in a scale
 #[derive(Clone)]
-pub struct ScaleKey {
-    scale: Rc<Scale>,
+pub struct ScaleKey<'a> {
+    scale: &'a Scale,
     position: i8,
 }
 
-impl ScaleKey {
-    pub fn new(scale: Rc<Scale>, position: i8) -> Self {
+impl<'a> ScaleKey<'a> {
+    pub fn new(scale: &'a Scale, position: i8) -> Self {
         Self { scale, position }
     }
     pub fn to_named_key(&self) -> NamedKey {
@@ -22,13 +20,13 @@ impl ScaleKey {
 
 // A note in a scale
 #[derive(Clone)]
-pub struct ScaleNote {
-    scale: Rc<Scale>,
+pub struct ScaleNote<'a> {
+    scale: &'a Scale,
     position: i8,
     octave: i8,
 }
-impl ScaleNote {
-    pub fn new(scale: Rc<Scale>, position: i8, octave: i8) -> Self {
+impl<'a> ScaleNote<'a> {
+    pub fn new(scale: &'a Scale, position: i8, octave: i8) -> Self {
         Self {
             scale,
             position,
@@ -161,12 +159,11 @@ mod tests {
     fn can_get_notes() {
         let c = str::parse::<NamedKey>("C").unwrap();
         let c_major_scale = Scale::new(c, vec![0, 2, 4, 5, 7, 9, 11]).unwrap(); // C-major
-        let c_major_scale = Rc::new(c_major_scale);
 
         let note_positions = [-2, -1, 0, 2, 4, 7, 9];
         let notes = note_positions
             .into_iter()
-            .map(|position| ScaleNote::new(Rc::clone(&c_major_scale), position, 4).to_named_note());
+            .map(|position| ScaleNote::new(&c_major_scale, position, 4).to_named_note());
 
         let expected_notes =
             ["A3", "B3", "C4", "E4", "G4", "C5", "E5"].map(|s| str::parse::<NamedNote>(s).unwrap());
@@ -176,12 +173,11 @@ mod tests {
 
         let eb = str::parse::<NamedKey>("Eb").unwrap();
         let eb_minor_scale = Scale::new(eb, vec![0, 2, 3, 5, 7, 8, 11]).unwrap(); // E-flat minor harmonic
-        let eb_minor_scale = Rc::new(eb_minor_scale);
 
         let note_positions = [0, 1, 2, 3, 4, 5, 6, 7];
-        let notes = note_positions.into_iter().map(|position| {
-            ScaleNote::new(Rc::clone(&eb_minor_scale), position, 4).to_named_note()
-        });
+        let notes = note_positions
+            .into_iter()
+            .map(|position| ScaleNote::new(&eb_minor_scale, position, 4).to_named_note());
 
         let expected_notes = ["Eb4", "F4", "Gb4", "Ab4", "Bb4", "Cb5", "D5", "Eb5"]
             .map(|s| str::parse::<NamedNote>(s).unwrap());
