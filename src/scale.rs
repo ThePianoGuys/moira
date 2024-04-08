@@ -1,40 +1,21 @@
+use std::str::FromStr;
+
 use log::warn;
+use regex::Regex;
 
 use super::key::{BaseKey, Key, NamedKey, NamedNote, Note};
 
-// A key in a scale
-#[derive(Clone)]
-pub struct ScaleKey<'a> {
-    scale: &'a Scale,
-    position: i8,
-}
-
-impl<'a> ScaleKey<'a> {
-    pub fn new(scale: &'a Scale, position: i8) -> Self {
-        Self { scale, position }
-    }
-    pub fn to_named_key(&self) -> NamedKey {
-        self.scale.get_named_key(self.position)
-    }
-}
-
 // A note in a scale
-#[derive(Clone)]
-pub struct ScaleNote<'a> {
-    scale: &'a Scale,
-    position: i8,
-    octave: i8,
+pub struct ScaleNote {
+    pub position: i8,
+    pub octave: i8,
 }
-impl<'a> ScaleNote<'a> {
-    pub fn new(scale: &'a Scale, position: i8, octave: i8) -> Self {
-        Self {
-            scale,
-            position,
-            octave,
-        }
+impl ScaleNote {
+    pub fn to_named_note(&self, scale: &Scale) -> NamedNote {
+        scale.get_named_note(self.position, self.octave)
     }
-    pub fn to_named_note(&self) -> NamedNote {
-        self.scale.get_named_note(self.position, self.octave)
+    pub fn to_note(&self, scale: &Scale) -> Note {
+        scale.get_note(self.position, self.octave)
     }
 }
 
@@ -110,21 +91,44 @@ impl Scale {
         }
         elements
     }
-    fn get_named_key(&self, position: i8) -> NamedKey {
-        let index = position.rem_euclid(i8::try_from(self.offsets.len()).unwrap());
-        self.elements[usize::try_from(index).unwrap()]
-    }
-    fn get_named_note(&self, position: i8, octave: i8) -> NamedNote {
+    fn get_index_and_additional_octaves(&self, position: i8) -> (usize, i8) {
         let len = i8::try_from(self.offsets.len()).unwrap();
         let (index, additional_octaves) = (position.rem_euclid(len), position.div_euclid(len));
         let index_usize = usize::try_from(index).unwrap();
-        let note = Note::compose(self.start.to_key(), octave + additional_octaves)
-            + &self.offsets[index_usize];
+        (index_usize, additional_octaves)
+    }
+    fn get_note(&self, position: i8, octave: i8) -> Note {
+        let (index_usize, additional_octaves) = self.get_index_and_additional_octaves(position);
+        Note::compose(self.start.to_key(), octave + additional_octaves) + &self.offsets[index_usize]
+    }
+    fn get_named_note(&self, position: i8, octave: i8) -> NamedNote {
+        let (index_usize, _) = self.get_index_and_additional_octaves(position);
+        let note = self.get_note(position, octave);
         note.get_named_note_starting_with(&self.elements[index_usize].base_key)
             .unwrap()
     }
-    pub fn get_scale(&self) -> &Vec<i8> {
-        &self.offsets
+}
+
+impl FromStr for Scale {
+    type Err = String;
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let re = Regex::new("^([A-G][b♭#♯x𝄪]?)(M|maj|m|min)?$").unwrap();
+        let captures = re
+            .captures(s)
+            .ok_or_else(|| format!("Invalid scale:{}", s))?;
+
+        let start = NamedKey::from_str(&captures[1])?;
+
+        let offsets = match captures.get(2) {
+            None => Ok(vec![0, 2, 4, 5, 7, 9, 11]), // major
+            Some(scale_mode) => match scale_mode.as_str() {
+                "M" | "maj" => Ok(vec![0, 2, 4, 5, 7, 9, 11]),
+                "m" | "min" => Ok(vec![0, 2, 3, 5, 7, 8, 11]),
+                mode => Err(format!("Invalid scale mode: {}", mode)),
+            },
+        }?;
+
+        Self::new(start, offsets)
     }
 }
 
@@ -160,9 +164,13 @@ mod tests {
         let c_major_scale = Scale::new(c, vec![0, 2, 4, 5, 7, 9, 11]).unwrap(); // C-major
 
         let note_positions = [-2, -1, 0, 2, 4, 7, 9];
-        let notes = note_positions
-            .into_iter()
-            .map(|position| ScaleNote::new(&c_major_scale, position, 4).to_named_note());
+        let notes = note_positions.into_iter().map(|position| {
+            ScaleNote {
+                position,
+                octave: 4,
+            }
+            .to_named_note(&c_major_scale)
+        });
 
         let expected_notes =
             ["A3", "B3", "C4", "E4", "G4", "C5", "E5"].map(|s| str::parse::<NamedNote>(s).unwrap());
@@ -174,9 +182,13 @@ mod tests {
         let eb_minor_scale = Scale::new(eb, vec![0, 2, 3, 5, 7, 8, 11]).unwrap(); // E-flat minor harmonic
 
         let note_positions = [0, 1, 2, 3, 4, 5, 6, 7];
-        let notes = note_positions
-            .into_iter()
-            .map(|position| ScaleNote::new(&eb_minor_scale, position, 4).to_named_note());
+        let notes = note_positions.into_iter().map(|position| {
+            ScaleNote {
+                position,
+                octave: 4,
+            }
+            .to_named_note(&eb_minor_scale)
+        });
 
         let expected_notes = ["Eb4", "F4", "Gb4", "Ab4", "Bb4", "Cb5", "D5", "Eb5"]
             .map(|s| str::parse::<NamedNote>(s).unwrap());
