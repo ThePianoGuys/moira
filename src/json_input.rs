@@ -13,13 +13,23 @@ use super::{Scale, ScaleNote, ScaleNotePiece, ScaleNoteTrack};
 // Notes  = [ Note | { Note: duration<int>} | Notes ]
 // Note   = null | int
 
-pub fn parse_input(input: &str) -> Result<ScaleNotePiece, String> {
+pub fn parse_piece(json_str: &str) -> Result<ScaleNotePiece, String> {
     let json: Value =
-        serde_json::from_str(input).or_else(|err| Err("Could not parse JSON!".to_string()))?;
+        serde_json::from_str(json_str).or_else(|_| Err("Could not parse JSON!".to_string()))?;
 
-    let tracks_json = json
+    let piece_json = json
+        .as_object()
+        .ok_or_else(|| "JSON should be an object!")?;
+
+    let bpm = piece_json.get("bpm").ok_or_else(|| "bpm missing!")?;
+    let bpm = bpm.as_u64().ok_or_else(|| "bpm must be uint!")?;
+    let bpm = u8::try_from(bpm).map_err(|_| "Could not cast bpm to u8!")?;
+
+    let tracks_json = piece_json
+        .get("tracks")
+        .ok_or_else(|| "tracks missing!")?
         .as_array()
-        .ok_or_else(|| "JSON should be an array!".to_string())?;
+        .ok_or_else(|| "tracks should be an array!")?;
     let mut tracks_by_id: IndexMap<String, ScaleNoteTrack> = IndexMap::new();
 
     for track_json in tracks_json.iter() {
@@ -28,7 +38,7 @@ pub fn parse_input(input: &str) -> Result<ScaleNotePiece, String> {
     }
     let tracks: Vec<ScaleNoteTrack> = tracks_by_id.into_values().collect();
 
-    Ok(ScaleNotePiece(tracks))
+    Ok(ScaleNotePiece { bpm, tracks })
 }
 
 fn parse_track(
@@ -37,69 +47,42 @@ fn parse_track(
 ) -> Result<ScaleNoteTrack, String> {
     let track_json = track_json
         .as_object()
-        .ok_or_else(|| "Each track should be a JSON object!".to_string())?;
+        .ok_or_else(|| "Each track should be a JSON object!")?;
 
-    let mut id: Option<String> = None;
-    let mut scale: Option<Scale> = None;
-    let mut octave: Option<i8> = None;
-    let mut bpm: Option<u8> = None;
-    let mut start: Option<u32> = None;
-    let mut notes: Option<Vec<TimedNote>> = None;
+    let id = track_json
+        .get("id")
+        .ok_or_else(|| "id missing!")?
+        .as_str()
+        .ok_or_else(|| "id should be string!")?
+        .to_string();
 
-    for (key, value) in track_json {
-        match key.as_str() {
-            "id" => {
-                id = Some(
-                    value
-                        .as_str()
-                        .ok_or_else(|| "ID should be a string!")?
-                        .to_string(),
-                );
-            }
-            "scale" => {
-                scale = Some(str::parse::<Scale>(
-                    value.as_str().ok_or_else(|| "Scale should be a string!")?,
-                )?);
-            }
-            "octave" => {
-                let octave_i64 = value.as_i64().ok_or_else(|| "Octave should be an int!")?;
-                octave =
-                    Some(i8::try_from(octave_i64).map_err(|_| "Could not convert octave to i8!")?);
-            }
-            "bpm" => {
-                let bpm_u64 = value.as_u64().ok_or_else(|| "bpm should be an uint!")?;
-                bpm = Some(u8::try_from(bpm_u64).map_err(|_| "Could not convert bpm to u8!")?);
-            }
-            "start" => {
-                start = Some(parse_track_start(value, tracks_by_id)?);
-            }
-            "notes" => {
-                let scale = scale
-                    .as_ref()
-                    .ok_or_else(|| "Scale should be defined before notes!")?;
-                let octave = octave.ok_or_else(|| "Octave should be defined before notes!")?;
-                notes = Some(parse_track_notes(value, scale, octave, 0)?);
-            }
-            other => {
-                return Err(format!("Incorrect key in JSON: {}", other));
-            }
-        };
-    }
+    let scale = track_json
+        .get("scale")
+        .ok_or_else(|| "scale missing!")?
+        .as_str()
+        .ok_or_else(|| "scale should be string!")?;
+    let scale = str::parse::<Scale>(scale)?;
 
-    if let (Some(id), Some(scale), Some(octave), Some(bpm), Some(start), Some(notes)) =
-        (id, scale, octave, bpm, start, notes)
-    {
-        Ok(ScaleNoteTrack {
-            id,
-            scale,
-            octave,
-            bpm,
-            start,
-            notes,
-        })
-    } else {
-        Err("Some parameters were missing!".to_string())
-    }
+    let octave = track_json
+        .get("octave")
+        .ok_or_else(|| "octave missing!")?
+        .as_i64()
+        .ok_or_else(|| "octave should be int!")?;
+    let octave = i8::try_from(octave).map_err(|_| "Could not convert octave to i8!")?;
+
+    let start = track_json.get("start").ok_or_else(|| "start missing!")?;
+    let start = parse_track_start(start, tracks_by_id)?;
+
+    let notes = track_json.get("notes").ok_or_else(|| "notes missing!")?;
+    let notes = parse_track_notes(notes, &scale, octave, 0)?;
+
+    Ok(ScaleNoteTrack {
+        id,
+        scale,
+        octave,
+        start,
+        notes,
+    })
 }
 
 fn parse_track_start(
@@ -145,7 +128,7 @@ fn parse_track_notes(
 ) -> Result<Vec<TimedNote>, String> {
     let mut notes: Vec<TimedNote> = Vec::new();
     let mut push_note = |position: Option<i8>, duration: u8| {
-        let duration = duration * TICKS_PER_BEAT / depth;
+        let duration = duration * TICKS_PER_BEAT / (2_u8.pow(u32::from(depth - 1)));
         notes.push(match position {
             Some(position) => {
                 let note = ScaleNote { position, octave };
@@ -206,17 +189,27 @@ mod tests {
     #[test]
     fn can_load_data() {
         let data = r#"
-        [
-            {
-                "id": "voice_1", "scale": "Cmaj", "octave": 4, "bpm": 120, "start": 0,
-                "notes": [
-                    "", 1, 2, 3, {"4": 2}, [5, 4], 3,
-                    6, 2, [{"5": 3}, 6, 5, 4],
-                    [3, 4, 3, 2, 1, 2, 1, -1, -2]
-                ]
-            }
-        ]"#;
+        {
+            "bpm": 120,
+            "tracks": [
+                {
+                    "id": "voice_1", "scale": "Cmaj", "octave": 4, "start": 0,
+                    "notes": [
+                        "", 0, 1, 2,
+                        [{"3": 3}, [4, 3]], 2, 5,
+                        1, [{"4": 3}, 5, 4, 3],
+                        [2, 3, 2, 1, 0, 1, 0, -1]
+                    ]
+                },
+                {
+                    "id": "voice_2", "scale": "Gmaj", "octave": 4, "start": 12,
+                    "notes": [
+                        "", 0, 1, 2
+                    ]
+                }
+            ]
+        }"#;
 
-        let piece = parse_input(data).unwrap();
+        let _piece = parse_piece(data).unwrap();
     }
 }

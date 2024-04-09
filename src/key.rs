@@ -337,7 +337,7 @@ impl FromStr for NamedNote {
             .ok_or_else(|| format!("Invalid note:{}", s))?;
 
         let key = NamedKey::from_str(&captures[1])?;
-        let octave: i8 = str::parse(&captures[2]).map_err(|err| format!("Invalid note: {}", s))?;
+        let octave: i8 = str::parse(&captures[2]).map_err(|_| format!("Invalid note: {}", s))?;
 
         Ok(Self::new(key, octave))
     }
