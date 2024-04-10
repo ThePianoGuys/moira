@@ -142,7 +142,7 @@ impl ScaleNotePiece {
         ]];
 
         for (i, track) in self.tracks.iter().enumerate() {
-            let track_to_midi = track.to_midi_harpsichord(u8::try_from(i % 16).unwrap());
+            let track_to_midi = track.to_midi_harpsichord(0);
             tracks.push(track_to_midi);
         }
         midly::write_std(&header, tracks.iter(), w)
