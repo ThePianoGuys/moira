@@ -6,7 +6,7 @@ use super::Scale;
 
 pub const TICKS_PER_BEAT: u8 = 24;
 
-// A note or silence, with associated duration.
+/// A note or silence, with associated duration.
 pub type TimedNote = (Option<i8>, u8);
 
 pub struct Track {

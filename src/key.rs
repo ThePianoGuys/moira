@@ -9,7 +9,7 @@ use std::fmt::{self, Debug, Display};
 use std::ops::Add;
 use std::str::FromStr;
 
-// Represents any of the 12 distinct keys in Western tuning
+/// Represents any of the 12 distinct keys in Western tuning
 #[derive(PartialEq, Eq, Clone, Copy)]
 pub struct Key(i8);
 
@@ -87,13 +87,13 @@ impl Debug for Key {
     }
 }
 
-// A wrapper around a note, with the height being the same as in MIDI
-// (0 is C-1, 60 is C4 etc.)
+/// A wrapper around a note, with the height being the same as in MIDI
+/// (0 is C-1, 60 is C4 etc.)
 #[derive(PartialEq, Eq, Clone, Copy)]
 pub struct Note(pub u8);
 
 impl Note {
-    // Decompose a Note into its Key and octave
+    /// Decompose a Note into its Key and octave
     pub fn decompose(&self) -> (Key, i8) {
         let key = self.0 % 12;
         let octave = (self.0 - key) / 12 - 1;
@@ -103,7 +103,7 @@ impl Note {
         )
     }
 
-    // Create a Note from a Key and octave
+    /// Create a Note from a Key and octave
     pub fn compose(key: Key, octave: i8) -> Self {
         // Note: C-1 is 0, C0 is 12.
         Self(key.0.try_into().unwrap()) + &((octave + 1) * 12)
@@ -241,6 +241,7 @@ impl Debug for BaseKey {
     }
 }
 
+/// A key that is called a certain way (e.g. D# or Eb).
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub struct NamedKey {
     pub base_key: BaseKey,
@@ -308,6 +309,7 @@ impl Debug for NamedKey {
     }
 }
 
+/// A note that is called a certain way (e.g. D#4 or Eb4).
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub struct NamedNote {
     key: NamedKey,

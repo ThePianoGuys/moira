@@ -7,9 +7,12 @@ use super::key::{BaseKey, Key, NamedKey, NamedNote, Note};
 
 
 pub struct Scale {
-    start: NamedKey,         // starting note of the scale: 0 is C, 11 is B
-    offsets: Vec<i8>,        // the offsets of the scale
-    elements: Vec<NamedKey>, // Will be filled in at struct initialization.
+    /// starting note of the scale: 0 is C, 11 is B
+    start: NamedKey,
+    /// the offsets of the scale
+    offsets: Vec<i8>,
+    /// Will be filled in at struct initialization.
+    elements: Vec<NamedKey>,
 }
 
 impl Scale {
@@ -43,9 +46,9 @@ impl Scale {
         })
     }
     fn generate_elements(start: &NamedKey, offsets: &Vec<i8>) -> Vec<NamedKey> {
-        // This bit of logic tries to assign NamedKeys to the offsets, such that,
-        // as far as possible, the NamedKeys start with different BaseKeys.
-        // If this is not possible, we default to the key's default NamedKey.
+        //! This bit of logic tries to assign NamedKeys to the offsets, such that,
+        //! as far as possible, the NamedKeys start with different BaseKeys.
+        //! If this is not possible, we default to the key's default NamedKey.
 
         let (base_key, _) = start.get_components();
         // Get all base keys in reverse order (so we can use this as a stack)
