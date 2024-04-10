@@ -1,5 +1,6 @@
 use indexmap::IndexMap;
 
+use regex::Regex;
 use serde_json::Value;
 
 use super::track::{TimedNote, TICKS_PER_BEAT};
@@ -10,7 +11,7 @@ use super::{Scale, Piece, Track};
 // Piece  = [ Track* ]
 // Track  = { "id": String, "scale": string, "bpm": int, "start": Start, "notes": Notes }
 // Start  = int | { String: offset<int> }
-// Notes  = [ Note | { Note: duration<int>} | Notes ]
+// Notes  = [ Note | { duration<int>: Notes } | Notes ]
 // Note   = null | int
 
 pub fn parse_piece(json_str: &str) -> Result<Piece, String> {
@@ -74,7 +75,7 @@ fn parse_track(
     let start = parse_track_start(start, tracks_by_id)?;
 
     let notes = track_json.get("notes").ok_or_else(|| "notes missing!")?;
-    let notes = parse_track_notes(notes, &scale, octave, 0)?;
+    let notes = parse_track_notes(notes, &scale, octave)?;
 
     Ok(Track {
         id,
@@ -124,11 +125,22 @@ fn parse_track_notes(
     track_notes_json: &Value,
     scale: &Scale,
     octave: i8,
-    depth: u8,
+) -> Result<Vec<TimedNote>, String> {
+    // matches e.g. 3, 1/3, /3.
+    let duration_regex = Regex::new("^(\\d+)?(?:\\/(\\d+))?$").unwrap();
+    parse_track_notes_recursive(track_notes_json, scale, octave, TICKS_PER_BEAT, &duration_regex, false)
+}
+
+fn parse_track_notes_recursive(
+    track_notes_json: &Value,
+    scale: &Scale,
+    octave: i8,
+    duration: u8,
+    duration_regex: &Regex,
+    halve_array: bool,
 ) -> Result<Vec<TimedNote>, String> {
     let mut notes: Vec<TimedNote> = Vec::new();
     let mut push_note = |position: Option<i8>, duration: u8| {
-        let duration = duration * TICKS_PER_BEAT / (2_u8.pow(u32::from(depth - 1)));
         notes.push(match position {
             Some(position) => {
                 (Some(position), duration)
@@ -141,37 +153,43 @@ fn parse_track_notes(
             let position = num.as_i64().ok_or_else(|| "Note value must be int!")?;
             let position =
                 i8::try_from(position).map_err(|_| "Could not cast note value to i8!")?;
-            push_note(Some(position), 1);
+            push_note(Some(position), duration);
         }
         Value::String(string) => {
             if string.as_str() != "" {
                 return Err("Only an empty string can be used to signify a silence!".to_string());
             }
-            push_note(None, 1);
+            push_note(None, duration);
         }
         Value::Null => {
-            push_note(None, 1);
+            push_note(None, duration);
         }
         Value::Array(track_notes_json) => {
-            for track_notes_json_deeper in track_notes_json {
+            for value in track_notes_json {
+                let duration = if halve_array { duration / 2 } else { duration };
                 let notes_deeper =
-                    parse_track_notes(track_notes_json_deeper, scale, octave, depth + 1)?;
+                    parse_track_notes_recursive(value, scale, octave, duration, &duration_regex, true)?;
                 notes.extend(notes_deeper.into_iter());
             }
         }
         Value::Object(map_note_value) => {
             for (key, value) in map_note_value {
-                let duration = value.as_u64().ok_or_else(|| "Note duration must be int!")?;
-                let duration =
-                    u8::try_from(duration).map_err(|_| "Could not cast duration to u8!")?;
+                let captures = duration_regex
+                    .captures(key)
+                    .ok_or_else(|| format!("Invalid duration specifier: {}", key))?;
 
-                if key.as_str() == "" {
-                    push_note(None, duration);
-                } else {
-                    let position =
-                        str::parse::<i8>(key).map_err(|_| "Could not cast note value to i8!")?;
-                    push_note(Some(position), duration);
-                }
+                let numerator = match captures.get(1) {
+                    None => 1,
+                    Some(numerator) => str::parse::<u8>(numerator.as_str()).unwrap()
+                };
+                let denominator = match captures.get(2) {
+                    None => 1,
+                    Some(denominator) => str::parse::<u8>(denominator.as_str()).unwrap()
+                };
+
+                let duration = duration * numerator / denominator;
+                let notes_deeper = parse_track_notes_recursive(value, scale, octave, duration, &duration_regex, false)?;
+                notes.extend(notes_deeper.into_iter());
             }
         }
         _ => {

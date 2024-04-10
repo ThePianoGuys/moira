@@ -4,7 +4,7 @@ use midly::{Format, Header, MetaMessage, MidiMessage, Timing, TrackEvent, TrackE
 
 use super::Scale;
 
-pub const TICKS_PER_BEAT: u8 = 16;
+pub const TICKS_PER_BEAT: u8 = 24;
 
 // A note or silence, with associated duration.
 pub type TimedNote = (Option<i8>, u8);
