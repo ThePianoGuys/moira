@@ -5,19 +5,6 @@ use regex::Regex;
 
 use super::key::{BaseKey, Key, NamedKey, NamedNote, Note};
 
-// A note in a scale
-pub struct ScaleNote {
-    pub position: i8,
-    pub octave: i8,
-}
-impl ScaleNote {
-    pub fn to_named_note(&self, scale: &Scale) -> NamedNote {
-        scale.get_named_note(self.position, self.octave)
-    }
-    pub fn to_note(&self, scale: &Scale) -> Note {
-        scale.get_note(self.position, self.octave)
-    }
-}
 
 pub struct Scale {
     start: NamedKey,         // starting note of the scale: 0 is C, 11 is B
@@ -97,11 +84,11 @@ impl Scale {
         let index_usize = usize::try_from(index).unwrap();
         (index_usize, additional_octaves)
     }
-    fn get_note(&self, position: i8, octave: i8) -> Note {
+    pub fn get_note(&self, position: i8, octave: i8) -> Note {
         let (index_usize, additional_octaves) = self.get_index_and_additional_octaves(position);
         Note::compose(self.start.to_key(), octave + additional_octaves) + &self.offsets[index_usize]
     }
-    fn get_named_note(&self, position: i8, octave: i8) -> NamedNote {
+    pub fn get_named_note(&self, position: i8, octave: i8) -> NamedNote {
         let (index_usize, _) = self.get_index_and_additional_octaves(position);
         let note = self.get_note(position, octave);
         note.get_named_note_starting_with(&self.elements[index_usize].base_key)
@@ -165,11 +152,7 @@ mod tests {
 
         let note_positions = [-2, -1, 0, 2, 4, 7, 9];
         let notes = note_positions.into_iter().map(|position| {
-            ScaleNote {
-                position,
-                octave: 4,
-            }
-            .to_named_note(&c_major_scale)
+            c_major_scale.get_named_note(position, 4)
         });
 
         let expected_notes =
@@ -183,11 +166,7 @@ mod tests {
 
         let note_positions = [0, 1, 2, 3, 4, 5, 6, 7];
         let notes = note_positions.into_iter().map(|position| {
-            ScaleNote {
-                position,
-                octave: 4,
-            }
-            .to_named_note(&eb_minor_scale)
+            eb_minor_scale.get_named_note(position, 4)
         });
 
         let expected_notes = ["Eb4", "F4", "Gb4", "Ab4", "Bb4", "Cb5", "D5", "Eb5"]

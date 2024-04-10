@@ -2,14 +2,14 @@ use std::fmt::{self, Display};
 
 use midly::{Format, Header, MetaMessage, MidiMessage, Timing, TrackEvent, TrackEventKind};
 
-use super::{Scale, ScaleNote};
+use super::Scale;
 
 pub const TICKS_PER_BEAT: u8 = 16;
 
-// A ScaleNote or silence, with associated duration.
-pub type TimedNote = (Option<ScaleNote>, u8);
+// A note or silence, with associated duration.
+pub type TimedNote = (Option<i8>, u8);
 
-pub struct ScaleNoteTrack {
+pub struct Track {
     pub id: String,
     pub scale: Scale,
     pub octave: i8,
@@ -17,7 +17,7 @@ pub struct ScaleNoteTrack {
     pub notes: Vec<TimedNote>,
 }
 
-impl ScaleNoteTrack {
+impl Track {
     /// Create a track of MIDI events, writing notes to the given MIDI channel.
     pub fn to_midi_harpsichord(&self, channel: u8) -> Vec<TrackEvent> {
         let mut track_events = Vec::<TrackEvent>::new();
@@ -42,7 +42,7 @@ impl ScaleNoteTrack {
                     kind: TrackEventKind::Midi {
                         channel: channel.into(),
                         message: MidiMessage::NoteOn {
-                            key: note.to_note(&self.scale).0.into(),
+                            key: self.scale.get_note(*note, self.octave).0.into(),
                             vel: 127.into(),
                         },
                     },
@@ -53,7 +53,7 @@ impl ScaleNoteTrack {
                     kind: TrackEventKind::Midi {
                         channel: channel.into(),
                         message: MidiMessage::NoteOff {
-                            key: note.to_note(&self.scale).0.into(),
+                            key: self.scale.get_note(*note, self.octave).0.into(),
                             vel: 127.into(),
                         },
                     },
@@ -75,14 +75,14 @@ impl ScaleNoteTrack {
     }
 }
 
-impl Display for ScaleNoteTrack {
+impl Display for Track {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let mut note_names = String::new();
         let mut note_symbols = String::new();
-        for (scale_note, duration) in self.notes.iter() {
-            let note_name = match scale_note {
-                Some(scale_note) => {
-                    format!("{:4}", scale_note.to_named_note(&self.scale).to_string())
+        for (position, duration) in self.notes.iter() {
+            let note_name = match position {
+                Some(position) => {
+                    format!("{:4}", self.scale.get_named_note(*position, self.octave).to_string())
                 }
                 None => "    ".to_string(),
             };
@@ -105,12 +105,12 @@ impl Display for ScaleNoteTrack {
     }
 }
 
-pub struct ScaleNotePiece {
+pub struct Piece {
     pub bpm: u8,
-    pub tracks: Vec<ScaleNoteTrack>,
+    pub tracks: Vec<Track>,
 }
 
-impl ScaleNotePiece {
+impl Piece {
     pub fn write_midi_harpsichord<W>(&self, w: &mut W) -> std::io::Result<()>
     where
         W: std::io::Write,
@@ -161,16 +161,16 @@ mod tests {
         let c_major_scale = Scale::new(c, vec![0, 2, 4, 5, 7, 9, 11]).unwrap();
         let octave = 4;
 
-        let wtc_1_1_prelude = ScaleNotePiece {
+        let wtc_1_1_prelude = Piece {
             bpm: 120,
-            tracks: vec![ScaleNoteTrack {
+            tracks: vec![Track {
                 id: "voice_1".to_string(),
                 start: 0,
                 scale: c_major_scale,
                 octave,
                 notes: [0, 2, 4, 7, 9, 4, 7, 9]
                     .into_iter()
-                    .map(|position| (Some(ScaleNote { position, octave }), TICKS_PER_BEAT / 2))
+                    .map(|position| (Some(position), TICKS_PER_BEAT / 2))
                     .collect(),
             }],
         };
@@ -185,14 +185,14 @@ mod tests {
         let c_major_scale = Scale::new(c, vec![0, 2, 4, 5, 7, 9, 11]).unwrap();
         let octave = 4;
 
-        let wtc_1_1_prelude_track = ScaleNoteTrack {
+        let wtc_1_1_prelude_track = Track {
             id: "voice_1".to_string(),
             start: 0,
             scale: c_major_scale,
             octave,
             notes: [0, 2, 4, 7, 9, 4, 7, 9]
                 .into_iter()
-                .map(|position| (Some(ScaleNote { position, octave }), TICKS_PER_BEAT / 2))
+                .map(|position| (Some(position), TICKS_PER_BEAT / 2))
                 .collect(),
         };
 

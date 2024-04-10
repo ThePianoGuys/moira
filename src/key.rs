@@ -4,9 +4,6 @@
 // NamedKey: a key that is called a certain way (e.g. D# or Eb).
 // NamedNote: a note that is called a certain way (e.g. D#4 or Eb4).
 
-// All these structs are not scale-aware. For high-level use, you probably
-// want the ScaleKey and ScaleNote structs in the scale module.
-
 use regex::Regex;
 use std::fmt::{self, Debug, Display};
 use std::ops::Add;

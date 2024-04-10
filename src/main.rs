@@ -7,26 +7,25 @@ mod scale;
 mod track;
 
 use key::NamedKey;
-use scale::{Scale, ScaleNote};
-use track::{ScaleNotePiece, ScaleNoteTrack, TICKS_PER_BEAT};
+use scale::Scale;
+use track::{Piece, Track, TICKS_PER_BEAT};
 
 fn main() {
     env_logger::init();
 
     let c = str::parse::<NamedKey>("C").unwrap();
     let c_major_scale = Scale::new(c, vec![0, 2, 4, 5, 7, 9, 11]).unwrap();
-    let octave = 4;
 
-    let wtc_1_1_prelude = ScaleNotePiece {
+    let wtc_1_1_prelude = Piece {
         bpm: 120,
-        tracks: vec![ScaleNoteTrack {
+        tracks: vec![Track {
             id: "voice_1".to_string(),
             start: 0,
             scale: c_major_scale,
-            octave,
+            octave: 4,
             notes: [0, 2, 4, 7, 9, 4, 7, 9]
                 .into_iter()
-                .map(|position| (Some(ScaleNote { position, octave }), TICKS_PER_BEAT / 2))
+                .map(|position| (Some(position), TICKS_PER_BEAT / 2))
                 .collect(),
         }],
     };

@@ -3,7 +3,7 @@ use indexmap::IndexMap;
 use serde_json::Value;
 
 use super::track::{TimedNote, TICKS_PER_BEAT};
-use super::{Scale, ScaleNote, ScaleNotePiece, ScaleNoteTrack};
+use super::{Scale, Piece, Track};
 
 // This is the definition of the JSON data format we are using.
 //
@@ -13,7 +13,7 @@ use super::{Scale, ScaleNote, ScaleNotePiece, ScaleNoteTrack};
 // Notes  = [ Note | { Note: duration<int>} | Notes ]
 // Note   = null | int
 
-pub fn parse_piece(json_str: &str) -> Result<ScaleNotePiece, String> {
+pub fn parse_piece(json_str: &str) -> Result<Piece, String> {
     let json: Value =
         serde_json::from_str(json_str).or_else(|_| Err("Could not parse JSON!".to_string()))?;
 
@@ -30,21 +30,21 @@ pub fn parse_piece(json_str: &str) -> Result<ScaleNotePiece, String> {
         .ok_or_else(|| "tracks missing!")?
         .as_array()
         .ok_or_else(|| "tracks should be an array!")?;
-    let mut tracks_by_id: IndexMap<String, ScaleNoteTrack> = IndexMap::new();
+    let mut tracks_by_id: IndexMap<String, Track> = IndexMap::new();
 
     for track_json in tracks_json.iter() {
         let track = parse_track(track_json, &tracks_by_id)?;
         tracks_by_id.insert(track.id.clone(), track);
     }
-    let tracks: Vec<ScaleNoteTrack> = tracks_by_id.into_values().collect();
+    let tracks: Vec<Track> = tracks_by_id.into_values().collect();
 
-    Ok(ScaleNotePiece { bpm, tracks })
+    Ok(Piece { bpm, tracks })
 }
 
 fn parse_track(
     track_json: &Value,
-    tracks_by_id: &IndexMap<String, ScaleNoteTrack>,
-) -> Result<ScaleNoteTrack, String> {
+    tracks_by_id: &IndexMap<String, Track>,
+) -> Result<Track, String> {
     let track_json = track_json
         .as_object()
         .ok_or_else(|| "Each track should be a JSON object!")?;
@@ -76,7 +76,7 @@ fn parse_track(
     let notes = track_json.get("notes").ok_or_else(|| "notes missing!")?;
     let notes = parse_track_notes(notes, &scale, octave, 0)?;
 
-    Ok(ScaleNoteTrack {
+    Ok(Track {
         id,
         scale,
         octave,
@@ -87,7 +87,7 @@ fn parse_track(
 
 fn parse_track_start(
     track_start_json: &Value,
-    tracks_by_id: &IndexMap<String, ScaleNoteTrack>,
+    tracks_by_id: &IndexMap<String, Track>,
 ) -> Result<u32, String> {
     match track_start_json {
         Value::Number(start) => {
@@ -131,8 +131,7 @@ fn parse_track_notes(
         let duration = duration * TICKS_PER_BEAT / (2_u8.pow(u32::from(depth - 1)));
         notes.push(match position {
             Some(position) => {
-                let note = ScaleNote { position, octave };
-                (Some(note), duration)
+                (Some(position), duration)
             }
             None => (None, duration),
         });
