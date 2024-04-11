@@ -8,7 +8,7 @@ mod track;
 
 use key::NamedKey;
 use scale::Scale;
-use track::{Piece, Track, TICKS_PER_BEAT};
+use track::{Piece, VoiceTrack, Track, TICKS_PER_BEAT};
 
 fn main() {
     env_logger::init();
@@ -18,7 +18,7 @@ fn main() {
 
     let wtc_1_1_prelude = Piece {
         bpm: 120,
-        tracks: vec![Track {
+        tracks: vec![VoiceTrack {
             id: "voice_1".to_string(),
             start: 0,
             scale: c_major_scale,
@@ -34,10 +34,10 @@ fn main() {
 
     let mut buffer = File::create("results/wtc_1_1_prelude.mid").unwrap();
 
-    wtc_1_1_prelude.write_midi_harpsichord(&mut buffer).unwrap();
+    wtc_1_1_prelude.write_midi(&mut buffer).unwrap();
 
     let wtc_1_1_fugue =
         json_input::parse_piece(include_str!("../examples/wtc_1_1_fugue.json")).unwrap();
     let mut buffer = File::create("results/wtc_1_1_fugue.mid").unwrap();
-    wtc_1_1_fugue.write_midi_harpsichord(&mut buffer).unwrap();
+    wtc_1_1_fugue.write_midi(&mut buffer).unwrap();
 }

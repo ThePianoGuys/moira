@@ -4,7 +4,7 @@ use regex::Regex;
 use serde_json::Value;
 
 use super::track::{TimedNote, TICKS_PER_BEAT};
-use super::{Scale, Piece, Track};
+use super::{Scale, Piece, VoiceTrack};
 
 // This is the definition of the JSON data format we are using.
 //
@@ -14,7 +14,7 @@ use super::{Scale, Piece, Track};
 // Notes  = [ Note | { duration<int>: Notes } | Notes ]
 // Note   = null | int
 
-pub fn parse_piece(json_str: &str) -> Result<Piece, String> {
+pub fn parse_piece(json_str: &str) -> Result<Piece<VoiceTrack>, String> {
     let json: Value =
         serde_json::from_str(json_str).or_else(|_| Err("Could not parse JSON!".to_string()))?;
 
@@ -31,21 +31,21 @@ pub fn parse_piece(json_str: &str) -> Result<Piece, String> {
         .ok_or_else(|| "tracks missing!")?
         .as_array()
         .ok_or_else(|| "tracks should be an array!")?;
-    let mut tracks_by_id: IndexMap<String, Track> = IndexMap::new();
+    let mut tracks_by_id: IndexMap<String, VoiceTrack> = IndexMap::new();
 
     for track_json in tracks_json.iter() {
         let track = parse_track(track_json, &tracks_by_id)?;
         tracks_by_id.insert(track.id.clone(), track);
     }
-    let tracks: Vec<Track> = tracks_by_id.into_values().collect();
+    let tracks: Vec<VoiceTrack> = tracks_by_id.into_values().collect();
 
     Ok(Piece { bpm, tracks })
 }
 
 fn parse_track(
     track_json: &Value,
-    tracks_by_id: &IndexMap<String, Track>,
-) -> Result<Track, String> {
+    tracks_by_id: &IndexMap<String, VoiceTrack>,
+) -> Result<VoiceTrack, String> {
     let track_json = track_json
         .as_object()
         .ok_or_else(|| "Each track should be a JSON object!")?;
@@ -77,7 +77,7 @@ fn parse_track(
     let notes = track_json.get("notes").ok_or_else(|| "notes missing!")?;
     let notes = parse_track_notes(notes, &scale, octave)?;
 
-    Ok(Track {
+    Ok(VoiceTrack {
         id,
         scale,
         octave,
@@ -88,13 +88,13 @@ fn parse_track(
 
 fn parse_track_start(
     track_start_json: &Value,
-    tracks_by_id: &IndexMap<String, Track>,
+    tracks_by_id: &IndexMap<String, VoiceTrack>,
 ) -> Result<u32, String> {
     match track_start_json {
         Value::Number(start) => {
             let start = start
                 .as_u64()
-                .ok_or_else(|| "Track start should be a uint!")?;
+                .ok_or_else(|| "VoiceTrack start should be a uint!")?;
             let start = u32::try_from(start).map_err(|_| "Could not cast track start to u8!")?;
             Ok(start)
         }

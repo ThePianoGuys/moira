@@ -9,7 +9,11 @@ pub const TICKS_PER_BEAT: u8 = 24;
 /// A note or silence, with associated duration.
 pub type TimedNote = (Option<i8>, u8);
 
-pub struct Track {
+pub trait Track {
+    fn to_midi(&self, channel: u8) -> Vec<TrackEvent>;
+}
+
+pub struct VoiceTrack {
     pub id: String,
     pub scale: Scale,
     pub octave: i8,
@@ -17,9 +21,9 @@ pub struct Track {
     pub notes: Vec<TimedNote>,
 }
 
-impl Track {
+impl Track for VoiceTrack {
     /// Create a track of MIDI events, writing notes to the given MIDI channel.
-    pub fn to_midi_harpsichord(&self, channel: u8) -> Vec<TrackEvent> {
+    fn to_midi(&self, channel: u8) -> Vec<TrackEvent> {
         let mut track_events = Vec::<TrackEvent>::new();
 
         // Set harpsichord as instrument
@@ -75,7 +79,7 @@ impl Track {
     }
 }
 
-impl Display for Track {
+impl Display for VoiceTrack {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let mut note_names = String::new();
         let mut note_symbols = String::new();
@@ -105,13 +109,13 @@ impl Display for Track {
     }
 }
 
-pub struct Piece {
+pub struct Piece<T: Track> {
     pub bpm: u8,
-    pub tracks: Vec<Track>,
+    pub tracks: Vec<T>,
 }
 
-impl Piece {
-    pub fn write_midi_harpsichord<W>(&self, w: &mut W) -> std::io::Result<()>
+impl<T: Track> Piece<T> {
+    pub fn write_midi<W>(&self, w: &mut W) -> std::io::Result<()>
     where
         W: std::io::Write,
     {
@@ -142,7 +146,7 @@ impl Piece {
         ]];
 
         for (i, track) in self.tracks.iter().enumerate() {
-            let track_to_midi = track.to_midi_harpsichord(0);
+            let track_to_midi = track.to_midi(0);
             tracks.push(track_to_midi);
         }
         midly::write_std(&header, tracks.iter(), w)
@@ -163,7 +167,7 @@ mod tests {
 
         let wtc_1_1_prelude = Piece {
             bpm: 120,
-            tracks: vec![Track {
+            tracks: vec![VoiceTrack {
                 id: "voice_1".to_string(),
                 start: 0,
                 scale: c_major_scale,
@@ -176,7 +180,7 @@ mod tests {
         };
 
         let mut buffer = Cursor::new(vec![0; 100]);
-        wtc_1_1_prelude.write_midi_harpsichord(&mut buffer).unwrap();
+        wtc_1_1_prelude.write_midi(&mut buffer).unwrap();
     }
 
     #[test]
@@ -185,7 +189,7 @@ mod tests {
         let c_major_scale = Scale::new(c, vec![0, 2, 4, 5, 7, 9, 11]).unwrap();
         let octave = 4;
 
-        let wtc_1_1_prelude_track = Track {
+        let wtc_1_1_prelude_track = VoiceTrack {
             id: "voice_1".to_string(),
             start: 0,
             scale: c_major_scale,
