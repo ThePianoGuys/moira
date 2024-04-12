@@ -1,10 +1,11 @@
 use indexmap::IndexMap;
 
 use regex::Regex;
-use serde_json::Value;
+use serde_json::{Value, Map};
 
-use super::track::{TimedNote, TICKS_PER_BEAT};
-use super::{Scale, Piece, VoiceTrack};
+use super::track::{Track, TimedNote, TICKS_PER_BEAT};
+use super::chord::Chord;
+use super::{Scale, Piece, Voice};
 
 // This is the definition of the JSON data format we are using.
 //
@@ -14,7 +15,7 @@ use super::{Scale, Piece, VoiceTrack};
 // Notes  = [ Note | { duration<int>: Notes } | Notes ]
 // Note   = null | int
 
-pub fn parse_piece(json_str: &str) -> Result<Piece<VoiceTrack>, String> {
+pub fn parse_piece(json_str: &str) -> Result<Piece, String> {
     let json: Value =
         serde_json::from_str(json_str).or_else(|_| Err("Could not parse JSON!".to_string()))?;
 
@@ -31,53 +32,71 @@ pub fn parse_piece(json_str: &str) -> Result<Piece<VoiceTrack>, String> {
         .ok_or_else(|| "tracks missing!")?
         .as_array()
         .ok_or_else(|| "tracks should be an array!")?;
-    let mut tracks_by_id: IndexMap<String, VoiceTrack> = IndexMap::new();
+    let mut tracks_by_id: IndexMap<String, Box<dyn Track>> = IndexMap::new();
 
     for track_json in tracks_json.iter() {
         let track = parse_track(track_json, &tracks_by_id)?;
-        tracks_by_id.insert(track.id.clone(), track);
+        tracks_by_id.insert(track.get_id().to_string(), track);
     }
-    let tracks: Vec<VoiceTrack> = tracks_by_id.into_values().collect();
+    let tracks: Vec<Box<dyn Track>> = tracks_by_id.into_values().collect();
 
     Ok(Piece { bpm, tracks })
 }
 
 fn parse_track(
     track_json: &Value,
-    tracks_by_id: &IndexMap<String, VoiceTrack>,
-) -> Result<VoiceTrack, String> {
+    tracks_by_id: &IndexMap<String, Box<dyn Track>>
+) -> Result<Box<dyn Track>, String> {
     let track_json = track_json
         .as_object()
         .ok_or_else(|| "Each track should be a JSON object!")?;
 
-    let id = track_json
+    let track_type = track_json.get("type")
+        .ok_or_else(|| "type missing!")?
+        .as_str()
+        .ok_or_else(|| "type shoudl be string!")?
+        .to_string();
+
+    match track_type.as_str() {
+        "voice" => parse_voice(track_json, tracks_by_id).map(|voice| Box::new(voice) as Box<dyn Track>),
+        "chord" => parse_chord(track_json, tracks_by_id).map(|voice| Box::new(voice) as Box<dyn Track>),
+        _ => Err("Invalid track type!".to_string()),
+    }
+}
+
+fn parse_voice(
+    voice_json: &Map<String, Value>,
+    tracks_by_id: &IndexMap<String, Box<dyn Track>>,
+) -> Result<Voice, String> {
+
+    let id = voice_json
         .get("id")
         .ok_or_else(|| "id missing!")?
         .as_str()
         .ok_or_else(|| "id should be string!")?
         .to_string();
 
-    let scale = track_json
+    let scale = voice_json
         .get("scale")
         .ok_or_else(|| "scale missing!")?
         .as_str()
         .ok_or_else(|| "scale should be string!")?;
     let scale = str::parse::<Scale>(scale)?;
 
-    let octave = track_json
+    let octave = voice_json
         .get("octave")
         .ok_or_else(|| "octave missing!")?
         .as_i64()
         .ok_or_else(|| "octave should be int!")?;
     let octave = i8::try_from(octave).map_err(|_| "Could not convert octave to i8!")?;
 
-    let start = track_json.get("start").ok_or_else(|| "start missing!")?;
+    let start = voice_json.get("start").ok_or_else(|| "start missing!")?;
     let start = parse_track_start(start, tracks_by_id)?;
 
-    let notes = track_json.get("notes").ok_or_else(|| "notes missing!")?;
-    let notes = parse_track_notes(notes, &scale, octave)?;
+    let notes = voice_json.get("notes").ok_or_else(|| "notes missing!")?;
+    let notes = parse_voice_notes(notes, &scale, octave)?;
 
-    Ok(VoiceTrack {
+    Ok(Voice {
         id,
         scale,
         octave,
@@ -88,13 +107,13 @@ fn parse_track(
 
 fn parse_track_start(
     track_start_json: &Value,
-    tracks_by_id: &IndexMap<String, VoiceTrack>,
+    tracks_by_id: &IndexMap<String, Box<dyn Track>>,
 ) -> Result<u32, String> {
     match track_start_json {
         Value::Number(start) => {
             let start = start
                 .as_u64()
-                .ok_or_else(|| "VoiceTrack start should be a uint!")?;
+                .ok_or_else(|| "Voice start should be a uint!")?;
             let start = u32::try_from(start).map_err(|_| "Could not cast track start to u8!")?;
             Ok(start)
         }
@@ -107,7 +126,7 @@ fn parse_track_start(
                 let offset = value
                     .as_i64()
                     .ok_or_else(|| "Offset to reference track must be int!")?;
-                let offset = i64::from(reference_track.start) + offset;
+                let offset = i64::from(*reference_track.get_start()) + offset;
                 let offset = u32::try_from(offset).map_err(|_| "Could not cast start to u32!")?;
                 track_start = Some(offset);
             }
@@ -121,17 +140,17 @@ fn parse_track_start(
     }
 }
 
-fn parse_track_notes(
+fn parse_voice_notes(
     track_notes_json: &Value,
     scale: &Scale,
     octave: i8,
 ) -> Result<Vec<TimedNote>, String> {
     // matches e.g. 3, 1/3, /3.
     let duration_regex = Regex::new("^(\\d+)?(?:\\/(\\d+))?$").unwrap();
-    parse_track_notes_recursive(track_notes_json, scale, octave, TICKS_PER_BEAT, &duration_regex, false)
+    parse_voice_notes_recursive(track_notes_json, scale, octave, TICKS_PER_BEAT, &duration_regex, false)
 }
 
-fn parse_track_notes_recursive(
+fn parse_voice_notes_recursive(
     track_notes_json: &Value,
     scale: &Scale,
     octave: i8,
@@ -155,6 +174,13 @@ fn parse_track_notes_recursive(
                 i8::try_from(position).map_err(|_| "Could not cast note value to i8!")?;
             push_note(Some(position), duration);
         }
+        Value::Bool(b) => {
+            let note = if *b {
+                Some(0)
+            } else {None};
+            push_note(note, duration);
+
+        }
         Value::String(string) => {
             if string.as_str() != "" {
                 return Err("Only an empty string can be used to signify a silence!".to_string());
@@ -168,7 +194,7 @@ fn parse_track_notes_recursive(
             for value in track_notes_json {
                 let duration = if halve_array { duration / 2 } else { duration };
                 let notes_deeper =
-                    parse_track_notes_recursive(value, scale, octave, duration, &duration_regex, true)?;
+                    parse_voice_notes_recursive(value, scale, octave, duration, &duration_regex, true)?;
                 notes.extend(notes_deeper.into_iter());
             }
         }
@@ -188,7 +214,7 @@ fn parse_track_notes_recursive(
                 };
 
                 let duration = duration * numerator / denominator;
-                let notes_deeper = parse_track_notes_recursive(value, scale, octave, duration, &duration_regex, false)?;
+                let notes_deeper = parse_voice_notes_recursive(value, scale, octave, duration, &duration_regex, false)?;
                 notes.extend(notes_deeper.into_iter());
             }
         }
@@ -197,6 +223,57 @@ fn parse_track_notes_recursive(
         }
     };
     Ok(notes)
+}
+
+fn parse_chord(chord_json: &Map<String, Value>, tracks_by_id: &IndexMap<String, Box<dyn Track>>) -> Result<Chord, String> {
+    let id = chord_json
+        .get("id")
+        .ok_or_else(|| "id missing!")?
+        .as_str()
+        .ok_or_else(|| "id should be string!")?
+        .to_string();
+
+    let scale = chord_json
+        .get("scale")
+        .ok_or_else(|| "scale missing!")?
+        .as_str()
+        .ok_or_else(|| "scale should be string!")?;
+    let scale = str::parse::<Scale>(scale)?;
+
+    let octave = chord_json
+        .get("octave")
+        .ok_or_else(|| "octave missing!")?
+        .as_i64()
+        .ok_or_else(|| "octave should be int!")?;
+    let octave = i8::try_from(octave).map_err(|_| "Could not convert octave to i8!")?;
+
+    let chord_array = chord_json
+        .get("chord")
+        .ok_or_else(|| "start missing!")?
+        .as_array()
+        .ok_or_else(|| "chord should be array!")?;
+
+    let start = chord_json.get("start").ok_or_else(|| "start missing!")?;
+    let start = parse_track_start(start, tracks_by_id)?;
+
+    let mut chord_positions: Vec<i8> = Vec::new();
+    for chord_position in chord_array.into_iter() {
+        let chord_position = chord_position.as_i64().ok_or_else(|| "each chord value should be int!")?;
+        let chord_position = i8::try_from(chord_position).map_err(|_| "Could not convert chord value to i8!")?;
+        chord_positions.push(chord_position);
+    }
+
+    let notes = chord_json.get("notes").ok_or_else(|| "notes missing!")?;
+    let notes = parse_voice_notes(notes, &scale, octave)?.into_iter().map(|value| (value.0.is_some(), value.1)).collect();
+
+    Ok(Chord {
+        id,
+        scale,
+        start,
+        octave,
+        chord: chord_positions,
+        notes,
+    })
 }
 
 #[cfg(test)]
@@ -210,7 +287,7 @@ mod tests {
             "bpm": 120,
             "tracks": [
                 {
-                    "id": "voice_1", "scale": "Cmaj", "octave": 4, "start": 0,
+                    "id": "voice_1", "scale": "Cmaj", "octave": 4, "start": 0, "type": "voice",
                     "notes": [
                         "", 0, 1, 2,
                         [{"3": 3}, [4, 3]], 2, 5,
@@ -219,10 +296,15 @@ mod tests {
                     ]
                 },
                 {
-                    "id": "voice_2", "scale": "Gmaj", "octave": 4, "start": 12,
+                    "id": "voice_2", "scale": "Gmaj", "octave": 4, "start": 12, "type": "voice",
                     "notes": [
                         "", 0, 1, 2
                     ]
+                },
+                {
+                    "id": "chord_1", "scale": "Cmaj", "octave": 3, "start": 16, "type": "chord",
+                    "chord": [0, 2, 4, 7],
+                    "notes": {"4": true}
                 }
             ]
         }"#;

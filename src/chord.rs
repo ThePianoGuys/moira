@@ -1,7 +1,7 @@
 use midly::{MidiMessage, TrackEvent, TrackEventKind};
 
 use super::scale::Scale;
-use super::track::{Track, Piece};
+use super::track::Track;
 
 // struct JazzPiece {
 //     length: u8,
@@ -10,7 +10,10 @@ use super::track::{Track, Piece};
 // }
 
 /// What the left hand is playing during a bar
+#[derive(Clone)]
 pub struct Chord {
+    pub id: String,
+    pub start: u32,
     pub scale: Scale,
     pub chord: Vec<i8>,  // the positions of the scale played
     pub octave: i8,
@@ -18,7 +21,13 @@ pub struct Chord {
 }
 
 impl Track for Chord {
-    fn to_midi(&self, channel: u8) -> Vec<TrackEvent> {
+    fn get_id(&self) -> &str {
+        &self.id
+    }
+    fn get_start(&self) -> &u32 {
+        &self.start
+    }
+    fn to_midi(&self, instrument: u8, channel: u8) -> Vec<TrackEvent> {
         let mut track_events = Vec::<TrackEvent>::new();
 
         // Set piano as instrument
@@ -26,7 +35,7 @@ impl Track for Chord {
             delta: 0.into(),
             kind: TrackEventKind::Midi {
                 channel: channel.into(),
-                message: MidiMessage::ProgramChange { program: 1.into() },
+                message: MidiMessage::ProgramChange { program: instrument.into() },
             },
         });
 
@@ -72,7 +81,7 @@ impl Track for Chord {
 
 #[cfg(test)]
 mod tests {
-    use super::super::NamedKey;
+    use super::super::{Piece, NamedKey};
     use super::*;
     use std::io::Cursor;
 
@@ -83,12 +92,14 @@ mod tests {
 
         let left_hand = Piece {
             bpm: 120, 
-            tracks: vec![Chord{
+            tracks: vec![Box::new(Chord{
+                id: "chord_1".to_string(),
+                start: 0,
                 scale: c_major_scale,
                 chord: vec![0, 2, 6],
                 octave: 3,
                 notes: vec![(true, 12), (true, 24), (true, 24), (false, 24), (true, 12)],
-            }]
+            })]
         };
 
         let mut buffer = Cursor::new(vec![0; 100]);

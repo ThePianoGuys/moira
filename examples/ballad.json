@@ -1,0 +1,45 @@
+{
+    "bpm": 120,
+    "tracks": [
+        {
+            "id": "C7", "scale": "Cmaj", "octave": 3, "start": 0, "type": "chord",
+            "chord": [0, 2, 4, 6],
+            "notes": [{"4": true}]
+        },
+        {
+            "id": "A7", "scale": "Amaj", "octave": 3, "start": 4, "type": "chord",
+            "chord": [0, 2, 4, 6],
+            "notes": [{"4": true}]
+        },
+        {
+            "id": "Dm7", "scale": "Dmin", "octave": 3, "start": 8, "type": "chord",
+            "chord": [0, 2, 4, 6],
+            "notes": [{"4": true}]
+        },
+        {
+            "id": "Fmmaj7", "scale": "Fmaj", "octave": 3, "start": 12, "type": "chord",
+            "chord": [0, 2, 4, 6],
+            "notes": [{"4": true}]
+        },
+        {
+            "id": "Em7", "scale": "Emin", "octave": 3, "start": 16, "type": "chord",
+            "chord": [0, 2, 4, 6],
+            "notes": [{"4": true}]
+        },
+        {
+            "id": "Eb0", "scale": "Ebmin", "octave": 3, "start": 20, "type": "chord",
+            "chord": [0, 2, 4],
+            "notes": [{"4": true}]
+        },
+        {
+            "id": "Dbm7", "scale": "Dbmin", "octave": 3, "start": 24, "type": "chord",
+            "chord": [0, 2, 4, 6],
+            "notes": [{"4": true}]
+        },
+        {
+            "id": "Db7", "scale": "Dbmaj", "octave": 3, "start": 28, "type": "chord",
+            "chord": [0, 2, 4, 6],
+            "notes": [{"4": true}]
+        }
+    ]
+}

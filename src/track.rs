@@ -10,10 +10,13 @@ pub const TICKS_PER_BEAT: u8 = 24;
 pub type TimedNote = (Option<i8>, u8);
 
 pub trait Track {
-    fn to_midi(&self, channel: u8) -> Vec<TrackEvent>;
+    fn get_id(&self) -> &str;
+    fn get_start(&self) -> &u32;
+    fn to_midi(&self, instrument: u8, channel: u8) -> Vec<TrackEvent>;
 }
 
-pub struct VoiceTrack {
+#[derive(Clone)]
+pub struct Voice {
     pub id: String,
     pub scale: Scale,
     pub octave: i8,
@@ -21,17 +24,23 @@ pub struct VoiceTrack {
     pub notes: Vec<TimedNote>,
 }
 
-impl Track for VoiceTrack {
+impl Track for Voice {
+    fn get_id(&self) -> &str {
+        &self.id
+    }
+    fn get_start(&self) -> &u32 {
+        &self.start
+    }
     /// Create a track of MIDI events, writing notes to the given MIDI channel.
-    fn to_midi(&self, channel: u8) -> Vec<TrackEvent> {
+    fn to_midi(&self, instrument: u8, channel: u8) -> Vec<TrackEvent> {
         let mut track_events = Vec::<TrackEvent>::new();
 
-        // Set harpsichord as instrument
+        // Set instrument
         track_events.push(TrackEvent {
             delta: 0.into(),
             kind: TrackEventKind::Midi {
                 channel: channel.into(),
-                message: MidiMessage::ProgramChange { program: 6.into() },
+                message: MidiMessage::ProgramChange { program: instrument.into() },
             },
         });
 
@@ -79,7 +88,7 @@ impl Track for VoiceTrack {
     }
 }
 
-impl Display for VoiceTrack {
+impl Display for Voice {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let mut note_names = String::new();
         let mut note_symbols = String::new();
@@ -109,12 +118,12 @@ impl Display for VoiceTrack {
     }
 }
 
-pub struct Piece<T: Track> {
+pub struct Piece {
     pub bpm: u8,
-    pub tracks: Vec<T>,
+    pub tracks: Vec<Box<dyn Track>>,
 }
 
-impl<T: Track> Piece<T> {
+impl Piece {
     pub fn write_midi<W>(&self, w: &mut W) -> std::io::Result<()>
     where
         W: std::io::Write,
@@ -146,7 +155,7 @@ impl<T: Track> Piece<T> {
         ]];
 
         for (i, track) in self.tracks.iter().enumerate() {
-            let track_to_midi = track.to_midi(u8::try_from(i).unwrap() % 16);
+            let track_to_midi = track.to_midi(1, u8::try_from(i).unwrap() % 16);
             tracks.push(track_to_midi);
         }
         midly::write_std(&header, tracks.iter(), w)
@@ -167,7 +176,7 @@ mod tests {
 
         let wtc_1_1_prelude = Piece {
             bpm: 120,
-            tracks: vec![VoiceTrack {
+            tracks: vec![Box::new(Voice {
                 id: "voice_1".to_string(),
                 start: 0,
                 scale: c_major_scale,
@@ -176,7 +185,7 @@ mod tests {
                     .into_iter()
                     .map(|position| (Some(position), TICKS_PER_BEAT / 2))
                     .collect(),
-            }],
+            })],
         };
 
         let mut buffer = Cursor::new(vec![0; 100]);
@@ -189,7 +198,7 @@ mod tests {
         let c_major_scale = Scale::new(c, vec![0, 2, 4, 5, 7, 9, 11]).unwrap();
         let octave = 4;
 
-        let wtc_1_1_prelude_track = VoiceTrack {
+        let wtc_1_1_prelude_track = Voice {
             id: "voice_1".to_string(),
             start: 0,
             scale: c_major_scale,
