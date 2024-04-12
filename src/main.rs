@@ -8,13 +8,15 @@ mod track;
 
 use key::NamedKey;
 use scale::Scale;
-use track::{Piece, VoiceTrack, Track, TICKS_PER_BEAT};
+use track::{Piece, VoiceTrack, TICKS_PER_BEAT};
+use chord::Chord;
 
 fn main() {
     env_logger::init();
 
     let c = str::parse::<NamedKey>("C").unwrap();
     let c_major_scale = Scale::new(c, vec![0, 2, 4, 5, 7, 9, 11]).unwrap();
+    let c_major_scale_cloned = c_major_scale.clone();
 
     let wtc_1_1_prelude = Piece {
         bpm: 120,
@@ -40,4 +42,17 @@ fn main() {
         json_input::parse_piece(include_str!("../examples/wtc_1_1_fugue.json")).unwrap();
     let mut buffer = File::create("results/wtc_1_1_fugue.mid").unwrap();
     wtc_1_1_fugue.write_midi(&mut buffer).unwrap();
+
+    let left_hand = Piece {
+        bpm: 120, 
+        tracks: vec![Chord{
+            scale: c_major_scale_cloned,
+            chord: vec![0, 2, 6],
+            octave: 3,
+            notes: vec![(true, 12), (true, 24), (true, 24), (false, 24), (true, 12)],
+        }]
+    };
+
+    let mut buffer = File::create("results/left_hand.mid").unwrap();
+    left_hand.write_midi(&mut buffer).unwrap();
 }

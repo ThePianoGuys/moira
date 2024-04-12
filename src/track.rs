@@ -146,7 +146,7 @@ impl<T: Track> Piece<T> {
         ]];
 
         for (i, track) in self.tracks.iter().enumerate() {
-            let track_to_midi = track.to_midi(0);
+            let track_to_midi = track.to_midi(u8::try_from(i).unwrap() % 16);
             tracks.push(track_to_midi);
         }
         midly::write_std(&header, tracks.iter(), w)

@@ -6,6 +6,7 @@ use regex::Regex;
 use super::key::{BaseKey, Key, NamedKey, NamedNote, Note};
 
 
+#[derive(Clone)]
 pub struct Scale {
     /// starting note of the scale: 0 is C, 11 is B
     start: NamedKey,
